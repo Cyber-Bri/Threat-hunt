@@ -163,5 +163,159 @@ DeviceProcessEvents
 | where DeviceName == "azuki-sl"
 | where ProcessCommandLine has "mkdir" or (ProcessCommandLine has "attrib" and ProcessCommandLine has "+h")
 | project Timestamp, ProcessCommandLine, FolderPath
+```
+# 🚩 Flag 5: DEFENCE EVASION - File Extension Exclusions
 
+**Scenario:** Attackers add file extension exclusions to Windows Defender to prevent scanning of malicious files. Counting these exclusions reveals the scope of the attacker's defense evasion strategy.
 
+* **Question:** How many file extensions were excluded from Windows Defender scanning?
+
+### 🔎 Hunting Strategy
+
+I queried the `DeviceRegistryEvents` table, specifically filtering for the `Windows Defender\Exclusions\Extensions` key path. Counting the distinct values here reveals how many file types the attacker successfully whitelisted.
+
+### 💻 KQL Query
+
+```kusto
+DeviceRegistryEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where RegistryKey has "Windows Defender\\Exclusions\\Extensions"
+| distinct RegistryValueName
+| count
+```
+# 🚩 Flag 6: DEFENCE EVASION - Temporary Folder Exclusion
+
+**Scenario:** Attackers add folder path exclusions to Windows Defender to prevent scanning of directories used for downloading and executing malicious tools. These exclusions allow malware to run undetected.
+
+* **Question:** What temporary folder path was excluded from Windows Defender scanning?
+
+### 🔎 Hunting Strategy
+
+Similar to Flag 5, I investigated the registry, but this time focused on `Windows Defender\Exclusions\Paths`. This reveals the specific directory path the attacker wanted Defender to ignore.
+
+### 💻 KQL Query
+
+```kusto
+DeviceRegistryEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where RegistryKey has "Windows Defender\\Exclusions\\Paths"
+| project RegistryValueName
+```
+# 🚩 Flag 7: DEFENCE EVASION - Download Utility Abuse
+
+**Scenario:** Legitimate system utilities are often weaponized to download malware while evading detection. Identifying these techniques helps improve defensive controls.
+
+* **Question:** Identify the Windows-native binary the attacker abused to download files?
+
+### 🔎 Hunting Strategy
+
+This hunt targeted "Living off the Land" (LOLBins). I searched for native tools like `certutil.exe`, `bitsadmin.exe`, or `curl.exe` that were executed with "http" in the command line, indicating a file download attempt.
+
+### 💻 KQL Query
+
+```kusto
+DeviceProcessEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where ProcessCommandLine has "http"
+| where FileName in~ ("certutil.exe", "bitsadmin.exe", "curl.exe", "powershell.exe")
+| project Timestamp, FileName, ProcessCommandLine
+```
+### 📊 Analysis & Findings
+
+The query highlights instances where trusted Windows binaries were misused to fetch files from the internet. The `FileName` identifies the specific LOLBin (e.g., `certutil.exe`), and `ProcessCommandLine` shows the remote URL of the malicious payload.
+
+# 🚩 Flag 8: PERSISTENCE - Scheduled Task Name
+
+**Scenario:** Scheduled tasks provide reliable persistence across system reboots. The task name often attempts to blend with legitimate Windows maintenance routines.
+
+* **Question:** Identify the name of the scheduled task created for persistence?
+
+### 🔎 Hunting Strategy
+
+I filtered `DeviceProcessEvents` for `schtasks.exe` executions using the `/create` flag. Analyzing the `/tn` (Task Name) parameter reveals the deceptive name the attacker used.
+
+### 💻 KQL Query
+
+```kusto
+DeviceProcessEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where FileName =~ "schtasks.exe"
+| where ProcessCommandLine has "/create"
+| project Timestamp, ProcessCommandLine
+```
+
+# 🚩 Flag 9: PERSISTENCE - Scheduled Task Target
+
+**Scenario:** The scheduled task action defines what executes at runtime. This reveals the exact persistence mechanism and the malware location.
+
+* **Question:** Identify the executable path configured in the scheduled task?
+
+### 🔎 Hunting Strategy
+
+Using the results from the previous search (Flag 8), I examined the `/tr` (Task Run) parameter within the command line arguments. This parameter points directly to the malware executable that the system is instructed to run every time the scheduled task triggers.
+
+### 💻 KQL Query
+
+```kusto
+DeviceProcessEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where FileName =~ "schtasks.exe"
+| where ProcessCommandLine has "/create"
+| project Timestamp, ProcessCommandLine
+// Look specifically for the value following the "/tr" switch
+```
+### 📊 Analysis & Findings
+
+By parsing the command line from the previous finding, specifically the /tr parameter, we identify the full path to the malicious executable. This confirms what payload persists across system reboots and allows us to locate the malware on the disk for isolation.
+
+# 🚩 Flag 10: COMMAND & CONTROL - C2 Server Address
+
+**Scenario:** Command and control infrastructure allows attackers to remotely control compromised systems. Identifying C2 servers enables network blocking and infrastructure tracking.
+
+* **Question:** Identify the IP address of the command and control server?
+
+### 🔎 Hunting Strategy
+
+I used `DeviceNetworkEvents` to trace outbound traffic from the suspicious processes identified in previous steps (like the malware running from the staging folder). Filtering out local IPs (10.x, 192.168.x) exposed the external C2 node.
+
+### 💻 KQL Query
+
+```kusto
+
+DeviceNetworkEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where ActionType == "ConnectionSuccess"
+| where InitiatingProcessFileName == "certutil.exe" 
+```
+📊 Analysis & Findings
+
+The query filters for outbound connections initiated by the suspicious process. The RemoteIP column identifies the external destination, revealing the IP address of the attacker's Command and Control (C2) server.
+
+# 🚩 Flag 11: COMMAND & CONTROL - C2 Communication Port
+
+**Scenario:** C2 communication ports can indicate the framework or protocol used. This information supports network detection rules and threat intelligence correlation.
+
+* **Question:** Identify the destination port used for command and control communications?
+
+### 🔎 Hunting Strategy
+
+I analyzed the `RemotePort` column from the C2 connections identified in Flag 10. Non-standard ports (like 8080, 4444, or specific high ports) are strong indicators of C2 frameworks like Cobalt Strike or Metasploit.
+
+### 💻 KQL Query
+
+```kusto
+DeviceNetworkEvents
+| where Timestamp between (datetime(2025-11-19)..datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+// Filter by the suspicious RemoteIP identified in Flag 10 if available
+| project RemotePort, RemoteIP, RemoteUrl
+```
+📊 Analysis & Findings
+
+By examining the RemotePort associated with the C2 traffic, we can determine the communication channel used. This port number can often pinpoint the specific malware family or C2 framework being employed by the attacker.
