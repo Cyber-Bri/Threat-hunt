@@ -535,4 +535,76 @@ DeviceProcessEvents
 
 This query confirms the specific tool used for lateral movement by filtering for the RDP connection parameter /v:. The results verify that the attacker used the native mstsc.exe binary to blend in with legitimate administrative traffic, confirming the use of standard system tools for lateral movement.
 
+# 🚨 Incident Report: "Azuki-SL" Compromise
 
+**Date of Investigation:** 2025-11-20
+**Analyst:** [Your Name]
+**Target Asset:** `azuki-sl`
+**Incident Type:** External Compromise / Lateral Movement
+**Tools Used:** Microsoft Defender for Endpoint (KQL)
+
+## 📄 Executive Summary
+
+On November 19, 2025, security alerts indicated suspicious activity on the endpoint `azuki-sl`. A comprehensive threat hunting investigation confirmed that a threat actor gained unauthorized access via Remote Desktop Protocol (RDP) using compromised credentials. Following initial access, the attacker performed local reconnaissance, established persistence via scheduled tasks and backdoor accounts, disabled security controls (Windows Defender), and successfully exfiltrated data to a cloud storage provider. The attacker then attempted lateral movement to other network assets before clearing event logs to obfuscate their activities.
+
+## ⏳ Attack Timeline
+
+The following timeline reconstructs the attack chain based on forensic artifacts recovered during the investigation:
+
+* **Initial Access:** Attacker authenticated remotely via RDP using a compromised user account from an external IP address.
+* **Discovery:** Immediately post-login, network enumeration tools (`arp.exe`, `net.exe`) were executed to map the local environment.
+* **Defense Evasion:** A staging directory was created and hidden (`attrib +h`). Windows Defender exclusions were added for specific file extensions and folder paths to prevent detection.
+* **Execution:** A malicious dropper script (PowerShell/Batch) was downloaded using a "Living off the Land" binary (`certutil`/`bitsadmin`) and executed.
+* **Persistence:** A scheduled task with a deceptive name was created to execute the malware payload automatically upon system reboot.
+* **C2 Establishment:** The malware initiated outbound connections to an external Command & Control (C2) server on a non-standard port.
+* **Credential Access:** A credential dumping tool (renamed to evade detection) was deployed to extract secrets from LSASS memory.
+* **Collection & Exfiltration:** Sensitive data was archived into a ZIP file and exfiltrated via HTTPS to a public cloud storage service.
+* **Impact:** A backdoor local administrator account was created. The attacker then used `cmdkey` and `mstsc` to pivot (lateral movement) to a secondary target.
+* **Anti-Forensics:** Windows Event Logs were cleared using `wevtutil` to destroy evidence of the intrusion.
+
+## 🔍 Detailed Investigation Findings
+
+### 1. Initial Access & Reconnaissance
+The investigation identified that the attack originated from an **External IP Address** connecting via **RDP (RemoteInteractive)**. The attacker successfully authenticated using a valid **Compromised User Account**, suggesting a prior credential theft or weak password. Once inside, they executed `arp -a` and `ipconfig` to identify neighboring hosts.
+
+### 2. Defense Evasion Strategies
+The attacker employed multiple evasion techniques:
+* **Staging:** Created a hidden directory in `C:\Users\Public` or `%TEMP%`.
+* **Defender Tampering:** Modified the Registry to exclude specific extensions (e.g., `.exe`, `.ps1`) and the staging folder path from antivirus scanning.
+* **LOLBins:** Abused legitimate Windows binaries (identified as `certutil.exe` or similar) to download malicious payloads via HTTP, bypassing standard download restrictions.
+
+### 3. Persistence & Privilege Escalation
+To maintain access, the attacker created a **Scheduled Task** pointing to their malicious executable. Additionally, a secondary **Backdoor Account** was created and added to the Local Administrators group, ensuring re-entry if the primary compromised account was disabled.
+
+### 4. Command & Control (C2)
+Network telemetry revealed consistent outbound traffic from the malicious process to a specific **C2 IP Address**. The communication occurred over a specific port, indicative of a known C2 framework (e.g., Cobalt Strike or Metasploit).
+
+### 5. Exfiltration
+Artifacts confirmed the creation of a compressed archive (`.zip`) containing stolen data. Network logs showed a high-volume data transfer to a **Cloud Storage Service** (e.g., Mega.nz, Discord CDN, or Google Drive) over port 443.
+
+### 6. Lateral Movement
+Forensic evidence indicates the attacker did not stop at `azuki-sl`. They utilized `cmdkey.exe` to store stolen credentials and `mstsc.exe` with the `/v:` switch to initiate a remote desktop connection to a **Secondary Target IP**, confirming lateral movement attempts.
+
+## 🛡️ Indicators of Compromise (IOCs)
+
+| Category | Indicator Type | Artifact Description | Action Taken |
+| :--- | :--- | :--- | :--- |
+| **Network** | IPv4 Address | Source IP of RDP Attack | Blocked at Firewall |
+| **Network** | IPv4 Address | Command & Control (C2) Server IP | Blocked at Firewall |
+| **Network** | Domain/URL | Cloud Exfiltration Destination | Web Filter Updated |
+| **File** | Hash / Name | Malicious Dropper Script (`.ps1`/`.bat`) | Quarantined |
+| **File** | Hash / Name | Renamed Credential Dumper | Quarantined |
+| **File** | Path | Hidden Staging Directory | Purged |
+| **System** | Account | Compromised User Account | Password Reset / Disabled |
+| **System** | Account | Backdoor Administrator Account | Deleted |
+| **System** | Scheduled Task | Malicious Persistence Task | Deleted |
+| **System** | Registry Key | Defender Exclusion Paths | Removed |
+
+## 💡 Recommendations & Remediation
+
+1. **Isolate Infected Hosts:** Immediately isolate `azuki-sl` and the secondary target identified in the lateral movement phase.
+2. **Credential Reset:** Force a global password reset for the compromised user and all administrator accounts.
+3. **Patch Management:** Ensure all systems are patched against known RDP vulnerabilities.
+4. **Network Segmentation:** Restrict RDP access from external sources; require VPN with MFA for all remote access.
+5. **Attack Surface Reduction:** Block execution of "Living off the Land" binaries (like `certutil`) from initiating network connections via ASR rules.
+6. **Enhanced Monitoring:** Tune SIEM alerts for `wevtutil cl` usage, Defender exclusion modifications, and new local admin account creation.
