@@ -19,6 +19,22 @@ Flag 1: Initial Access - Return Connection Source
 | project Timestamp, RemoteIP, DeviceName, ActionType
 ```
 
-<img width="1923" height="894" alt="image" src="https://github.com/user-attachments/assets/db032099-30f9-4a8c-8727-29e0ba36a9ff" />
+<img width="750" height="750" alt="Screenshot 2025-12-06 at 10 32 51 PM" src="https://github.com/user-attachments/assets/f072afe0-b488-4f7e-b3e7-16f9f8d13c6c" />
+
 
 - Answer: 159.26.106.98
+
+Flag 2: Lateral Movement - Compromised Device
+- Investigative Thinking: Once inside azuki-sl, the attacker likely moved laterally. RDP (mstsc.exe) is a common tool for this. I will look for RDP process execution on the entry device and correlate it with logon events on other servers.
+my query
+
+```DeviceProcessEvents
+| where FileName contains "mstsc.exe"
+| where DeviceName == "azuki-sl"
+| project TimeGenerated, ProcessCommandLine
+```
+<img width="750" height="750" alt="Screenshot 2025-12-06 at 11 24 34 PM" src="https://github.com/user-attachments/assets/051bf9dd-3ac1-415a-9cb8-f0b245239613" />
+
+Answer: azuki-fileserver01
+
+Flag 3: Lateral Movement - Compromised Account
