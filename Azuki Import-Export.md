@@ -11,32 +11,7 @@
 - [Incident Brief](#incident-brief)
 - [Hunt Hypothesis (CISO Tasking)](#hunt-hypothesis-ciso-tasking)
 - [Initial Access — Summary](#initial-access--summary)
-- [Investigation Questions (Template)](#investigation-questions-template)
-- [Flags (1–20) — Queries & Strategy](#flags-120--queries--strategy)
-  - [🚩 Flag 1: Initial Access — Remote Access Source](#-flag-1-initial-access--remote-access-source)
-  - [🚩 Flag 2: Initial Access — Compromised User Account](#-flag-2-initial-access--compromised-user-account)
-  - [🚩 Flag 3: Discovery — Network Reconnaissance](#-flag-3-discovery--network-reconnaissance)
-  - [🚩 Flag 4: Defense Evasion — Malware Staging Directory](#-flag-4-defense-evasion--malware-staging-directory)
-  - [🚩 Flag 5: Defense Evasion — File Extension Exclusions](#-flag-5-defense-evasion--file-extension-exclusions)
-  - [🚩 Flag 6: Defense Evasion — Temporary Folder Exclusion](#-flag-6-defense-evasion--temporary-folder-exclusion)
-  - [🚩 Flag 7: Defense Evasion — Download Utility Abuse](#-flag-7-defense-evasion--download-utility-abuse)
-  - [🚩 Flag 8: Persistence — Scheduled Task Name](#-flag-8-persistence--scheduled-task-name)
-  - [🚩 Flag 9: Persistence — Scheduled Task Target](#-flag-9-persistence--scheduled-task-target)
-  - [🚩 Flag 10: C2 — Server Address](#-flag-10-c2--server-address)
-  - [🚩 Flag 11: C2 — Communication Port](#-flag-11-c2--communication-port)
-  - [🚩 Flag 12: Credential Access — Credential Theft Tool](#-flag-12-credential-access--credential-theft-tool)
-  - [🚩 Flag 13: Credential Access — Memory Extraction Module](#-flag-13-credential-access--memory-extraction-module)
-  - [🚩 Flag 14: Collection — Data Staging Archive](#-flag-14-collection--data-staging-archive)
-  - [🚩 Flag 15: Exfiltration — Exfiltration Channel](#-flag-15-exfiltration--exfiltration-channel)
-  - [🚩 Flag 16: Anti-Forensics — Log Tampering](#-flag-16-anti-forensics--log-tampering)
-  - [🚩 Flag 17: Impact — Persistence Account](#-flag-17-impact--persistence-account)
-  - [🚩 Flag 18: Execution — Malicious Script](#-flag-18-execution--malicious-script)
-  - [🚩 Flag 19: Lateral Movement — Secondary Target](#-flag-19-lateral-movement--secondary-target)
-  - [🚩 Flag 20: Lateral Movement — Remote Access Tool](#-flag-20-lateral-movement--remote-access-tool)
-- [MITRE ATT&CK Mapping](#mitre-attck-mapping)
-- [Analyst Notes & Screenshots](#analyst-notes--screenshots)
 - [Recommendations & Next Steps](#recommendations--next-steps)
-- [KQL Notes](#kql-notes)
 
 ---
 
@@ -538,7 +513,7 @@ This query confirms the specific tool used for lateral movement by filtering for
 # 🚨 Incident Report: "Azuki-SL" Compromise
 
 **Date of Investigation:** 2025-11-20
-**Analyst:** [Your Name]
+**Analyst:** Brian Hardy
 **Target Asset:** `azuki-sl`
 **Incident Type:** External Compromise / Lateral Movement
 **Tools Used:** Microsoft Defender for Endpoint (KQL)
